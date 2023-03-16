@@ -59,63 +59,77 @@ const useSubmit = () => {
       );
       if (messages.length === 0) throw new Error('Message exceed max token!');
 
-      if (apiFree) {
-        stream = await getChatCompletionStream(
-          useStore.getState().apiEndpoint,
-          messages,
-          chats[currentChatIndex].config
-        );
-      } else if (apiKey) {
-        stream = await getChatCompletionStream(
-          useStore.getState().apiEndpoint,
-          messages,
-          chats[currentChatIndex].config,
-          apiKey
-        );
-      } else {
-        throw new Error('No API key supplied! Please check your API settings.');
-      }
+      let result = await getChatCompletion(
+        useStore.getState().apiEndpoint,
+        messages,
+        chats[currentChatIndex].config
+      );
+      const updatedChats: ChatInterface[] = JSON.parse(
+        JSON.stringify(useStore.getState().chats)
+      );
+      const updatedMessages = updatedChats[currentChatIndex].messages;
+      updatedMessages[updatedMessages.length - 1].content += (
+        result as any
+      ).output;
+      setChats(updatedChats);
 
-      if (stream) {
-        if (stream.locked)
-          throw new Error(
-            'Oops, the stream is locked right now. Please try again'
-          );
-        const reader = stream.getReader();
-        let reading = true;
-        while (reading && useStore.getState().generating) {
-          const { done, value } = await reader.read();
+      // if (apiFree) {
+      //   stream = await getChatCompletionStream(
+      //     useStore.getState().apiEndpoint,
+      //     messages,
+      //     chats[currentChatIndex].config
+      //   );
+      // } else if (apiKey) {
+      //   stream = await getChatCompletionStream(
+      //     useStore.getState().apiEndpoint,
+      //     messages,
+      //     chats[currentChatIndex].config,
+      //     apiKey
+      //   );
+      // } else {
+      //   throw new Error('No API key supplied! Please check your API settings.');
+      // }
 
-          const result = parseEventSource(new TextDecoder().decode(value));
+      // if (stream) {
+      //   if (stream.locked)
+      //     throw new Error(
+      //       'Oops, the stream is locked right now. Please try again'
+      //     );
+      //   const reader = stream.getReader();
+      //   let reading = true;
+      //   while (reading && useStore.getState().generating) {
+      //     const { done, value } = await reader.read();
 
-          if (result === '[DONE]' || done) {
-            reading = false;
-          } else {
-            const resultString = result.reduce((output: string, curr) => {
-              if (typeof curr === 'string') return output;
-              else {
-                const content = curr.choices[0].delta.content;
-                if (content) output += content;
-                return output;
-              }
-            }, '');
+      //     const result = parseEventSource(new TextDecoder().decode(value));
 
-            const updatedChats: ChatInterface[] = JSON.parse(
-              JSON.stringify(useStore.getState().chats)
-            );
-            const updatedMessages = updatedChats[currentChatIndex].messages;
-            updatedMessages[updatedMessages.length - 1].content += resultString;
-            setChats(updatedChats);
-          }
-        }
-        if (useStore.getState().generating) {
-          reader.cancel('Cancelled by user');
-        } else {
-          reader.cancel('Generation completed');
-        }
-        reader.releaseLock();
-        stream.cancel();
-      }
+      //     if (result === '[DONE]' || done) {
+      //       reading = false;
+      //     } else {
+      //       const resultString = result.reduce((output: string, curr) => {
+      //         if (typeof curr === 'string') return output;
+      //         else {
+      //           const content = curr.choices[0].delta.content;
+      //           if (content) output += content;
+      //           return output;
+      //         }
+      //       }, '');
+
+      //       const updatedChats: ChatInterface[] = JSON.parse(
+      //         JSON.stringify(useStore.getState().chats)
+      //       );
+      //       const updatedMessages = updatedChats[currentChatIndex].messages;
+      //       updatedMessages[updatedMessages.length - 1].content += resultString;
+      //       setChats(updatedChats);
+      //     }
+      //   }
+      //   if (useStore.getState().generating) {
+      //     reader.cancel('Cancelled by user');
+      //   } else {
+      //     reader.cancel('Generation completed');
+      //   }
+      //   reader.releaseLock();
+      //   stream.cancel();
+      // }
 
       // generate title for new chats
       const currChats = useStore.getState().chats;
